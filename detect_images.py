@@ -217,8 +217,8 @@ def full_model_tester_resnet(image_data,YOLOmodel,emb_resnetModel,index,label_li
         #plt.title(class_names[predicted]+" "+str(probability))
 
         #plt.show()
-
-    print("AIKA KLASSIFIKAATIOLLE", aika_mallinnukseen)
-    print("KA", aika_mallinnukseen / len(boxes))
+    if len(boxes)!=0:
+        print("AIKA KLASSIFIKAATIOLLE", aika_mallinnukseen)
+        print("KA", aika_mallinnukseen / len(boxes))
 
     return predictions

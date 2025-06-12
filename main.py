@@ -134,6 +134,7 @@ def load_imagedata(companyname):
     for salesvisit in salesvisits[10:]:
         for imageset in salesvisit["imagesets"]:
             if imageset["imageData"]!=None:
+                print("data valmiina")
                 continue
             imageData=get_imageset_imageData(imageset, companyname)
             if imageData==None:
