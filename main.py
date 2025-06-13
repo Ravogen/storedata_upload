@@ -23,7 +23,7 @@ import faiss
 import hyllyn_sisalto as hs
 from collections import Counter
 import pickle
-
+import yhdistaminen as yh
 
 client = MongoClient(os.getenv("MONGO_URI"))
 unifiedDB=client["unifiedDB_TEST"]
@@ -129,14 +129,67 @@ def get_imageset_imageData(imageset,companyName):
         scale = original_height / kuvat[count].shape[0]
         kuvat[count] = zoom(kuvat[count], (scale, 1, 1), order=1)
         results.append(result)
-        im = Image.fromarray(kuvat[count])
-        im.save(f"img_{count}.jpeg", format="JPEG")
+        #im = Image.fromarray(kuvat[count])
+        #im.save(f"img_{count}.jpeg", format="JPEG")
         count+=1
+    images=[kuvat[0]]
+    new_results=[results[0]]
+    for i in range(len(kuvat) - 1):
 
-    with open("tiedosto.json", "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2, ensure_ascii=False)
-    print(1/0)
-    hyllyn_sisalto, tuotteet_hyllyissa, hintalaput_hyllyissa, hintalaput = hs.tuotteiden_sijainnit_dev(results, kuvat,
+        img =kuvat[i+1].copy()
+
+
+        data1 = results[i].copy()
+        data2 = results[i + 1].copy()
+
+        height_pala0, width_pala0 = kuvat[i].shape[:2]
+        height_pala, width_pala= kuvat[i+1].shape[:2]
+        #height_pala0, width_pala0 = 4080, 3060
+        #height_pala, width_pala = 4080, 3060
+        tensor1, tags1 = yh.create_tensor(data1,height_pala0, width_pala0)
+        tensor2, tags2 = yh.create_tensor(data2,height_pala, width_pala)
+
+        indeksi = yh.find_best_shift(tensor1, tags1, tensor2, tags2)
+        # print(indeksi)
+        indeksi = width_pala - indeksi
+        img = img[:, indeksi:].copy()
+        images.append(img)
+        plt.imshow(cv2.hconcat(images))
+        plt.show()
+        indeksi_normed=indeksi / width_pala
+        print(indeksi,width_pala)
+        new_width=width_pala-indeksi
+        new_width_normed=new_width/width_pala
+        print(indeksi_normed)
+        poistettavat=[]
+        new_result=[]
+        for result in results[i+1]:
+            mod_result = result.copy()
+            if result["bounding_box"]["left"]+result["bounding_box"]["width"]<indeksi_normed:
+                #poistettavat.append(result)
+                continue
+            elif result["bounding_box"]["left"]<indeksi_normed:
+
+                mod_result["bounding_box"]["left"]=0
+                mod_result["bounding_box"]["width"]=(mod_result["bounding_box"]["width"]*width_pala)/new_width
+                new_result.append(mod_result)
+                continue
+            else:
+                mod_result["bounding_box"]["left"] = (mod_result["bounding_box"]["left"]-indeksi_normed)/new_width_normed
+                mod_result["bounding_box"]["width"] = (mod_result["bounding_box"]["width"] * width_pala) / new_width
+                new_result.append(mod_result)
+
+        #new_result = [x for x in results[i+1] if x not in poistettavat]
+        new_results.append(new_result)
+        #results[i+1]=new_result
+        # kokokuva = cv2.hconcat(images)
+        # plt.imshow(kokokuva)
+        # plt.show()
+
+    #with open("tiedosto.json", "w", encoding="utf-8") as f:
+    #    json.dump(results, f, indent=2, ensure_ascii=False)
+
+    hyllyn_sisalto, tuotteet_hyllyissa, hintalaput_hyllyissa, hintalaput = hs.tuotteiden_sijainnit_dev(new_results, images,
                                                                                                        iteration20=True,
                                                                                                        transform=True,
                                                                                                        plot=True)

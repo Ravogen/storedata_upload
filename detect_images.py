@@ -2,6 +2,7 @@ from ultralytics import YOLO
 from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
+import cv2
 import matplotlib.patches as patches
 import torch
 import torch.nn.functional as F
@@ -14,7 +15,7 @@ import faiss
 from collections import Counter
 import pickle
 import json
-
+import hyllyn_sisalto as hs
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 def get_calssification_model(modelpath,number_calsses,pretrainet=False):
@@ -96,7 +97,33 @@ def delete_stacked_boxes(boxes, threshold=0.9):
     print("POISTON JÄLKEEN",len(keep))
     return keep
 
+def transdorm(left_original,width,top,height,matrix):
 
+    oikea_ylakulma = np.array([[left_original + width, top]], dtype=np.float32)
+    oikea_ylakulma = np.array([oikea_ylakulma], dtype=np.float32)
+
+    oikea_alakulma = np.array([[left_original + width, top + height]], dtype=np.float32)
+    oikea_alakulma = np.array([oikea_alakulma], dtype=np.float32)
+
+    vasen_ylakulma = np.array([[left_original, top]], dtype=np.float32)
+    vasen_ylakulma = np.array([vasen_ylakulma], dtype=np.float32)
+
+    vasen_alakulma = np.array([[left_original, top + height]], dtype=np.float32)
+    vasen_alakulma = np.array([vasen_alakulma], dtype=np.float32)
+
+    oikea_ylakulma_transformed = cv2.perspectiveTransform(oikea_ylakulma, matrix)
+    oikea_alakulma_transformed = cv2.perspectiveTransform(oikea_alakulma, matrix)
+    vasen_ylakulma_transformed = cv2.perspectiveTransform(vasen_ylakulma, matrix)
+    vasen_alakulma_transformed = cv2.perspectiveTransform(vasen_alakulma, matrix)
+
+    left_original = vasen_alakulma_transformed[0][0][0]
+    top = oikea_ylakulma_transformed[0][0][1]
+    height =oikea_alakulma_transformed[0][0][1] - oikea_ylakulma_transformed[0][0][1]
+    width = oikea_ylakulma_transformed[0][0][0] - vasen_ylakulma_transformed[0][0][0]
+
+
+
+    return left_original,width,top,height
 
 
 
@@ -145,89 +172,118 @@ def full_model_tester_resnet(image_data,YOLOmodel,emb_resnetModel,index,label_li
     ylin_tunnistus=10000
     alin_tunnistus=0
     predictions=[]
+    hintalaput_for_transformation={}
+    count_hintalappu=0
+
+
+    for box in boxes:
+        x1, y1, x2, y2, conf, cls = box.tolist()
+        if conf<0.15:
+            continue
+        if cls==1:
+            hintalaput_for_transformation["hintalappu " + str(count_hintalappu)] = {"top": int(y1) / height,
+                                                                                    "height": (int(y2) - int(y1)) / height,
+                                                                                    "left":int(x1) / width,
+                                                                                    "width": (int(x2) - int(x1)) / width,
+                                                                                    "prob": float(0.99)}
+    #matrix, new_width, original_valid_hintalaput, hyllyjen_maara = hs.get_params_for_transorm(hintalaput_for_transformation,width, height)
+    #matrix=np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
     for box in boxes:
         x1, y1, x2, y2, conf, cls = box.tolist()
 
 
         w, h = x2 - x1, y2 - y1
-        cropped = image_np[int(y1):int(y2), int(x1):int(x2)]
+
         if conf<0.15:
 
             continue
 
 
-        if int(y1)+int(y2) - int(y1)>alin_tunnistus:
-            alin_tunnistus=int(y1)+int(y2) - int(y1)
 
-        if cls==1:
 
+        left= int(x1) / width
+        top=int(y1) / height
+        crop_width=(int(x2) - int(x1)) / width
+        crop_height=(int(y2) - int(y1)) / height
+
+        cropped = image_np[int(y1):int(y2), int(x1):int(x2)]
+        if cls!=1:
+            img_pil = Image.fromarray(cropped)
+            img_tensor = transform(img_pil).unsqueeze(0)
+            with torch.no_grad():
+                embedding = emb_resnetModel(img_tensor)  # esim. nn.Sequential(...)
+                embedding = embedding.view(embedding.size(0), -1).cpu().numpy()  # shape: (1, 2048)
+                #embedding=embedding.view(1, -1).cpu().numpy()
+                klassifikaatio_aika = time.time()
+                faiss.normalize_L2(embedding)
+                D, I = index.search(embedding, k=5)
+
+            aika_mallinnukseen+=time.time()-klassifikaatio_aika
+            top_labels = [label_list[i] for i in I[0]]
+
+            #predicted = Counter(top_labels).most_common(1)[0][0]
+
+            predicted=top_labels[0]
+            if cls!=1:
+                tag_name=class_names[predicted]
+
+            else:
+                tag_name="hintalappu"
+            if tag_name in nimet:
+                EAN = nimet[tag_name][1]
+                tag_name=nimet[tag_name][0]
+
+            else:
+                EAN=None
+
+            #left, crop_width, top, crop_height=transdorm(left,crop_width,top,crop_height,matrix)
+            if D[0][0]>0.3 and cls!=1:
+                predictions.append({
+                    "bounding_box": {
+                        "left": left,
+                        "top": top,
+                        "width": crop_width,
+                        "height": crop_height},
+                    "tag_name": "[Auto-Generated] Other Products",
+                    "EAN":None,
+                    #"probability": np.exp(-D[0][0])
+                    "probability": np.exp(-D[0][0]*1.666)
+                    #"probability": float(D[0][0])
+                })
+                continue
+            if int(top*height)<ylin_tunnistus and cls!=1:
+                #ei huomioida hintalappuja koska ne on tuotteiden alla
+
+                ylin_tunnistus=int(top*height)
+
+            if int((top+crop_height)*height)> alin_tunnistus:
+                alin_tunnistus = int((top+crop_height)*height)
+            predictions.append({
+                "bounding_box":{
+                        "left": left,
+                        "top": top,
+                        "width": crop_width,
+                        "height": crop_height},
+            "tag_name": tag_name,
+            "EAN":EAN,
+            #"probability":np.exp(-D[0][0])
+            "probability": np.exp(-D[0][0]*1.666)
+            #"probability": float(D[0][0])
+            })
+        else:
+            if int((top + crop_height) * height) > alin_tunnistus:
+                alin_tunnistus = int((top + crop_height) * height)
             predictions.append({
                 "bounding_box": {
-                    "left": int(x1) / width,
-                    "top": int(y1) / height,
-                    "width": (int(x2) - int(x1)) / width,
-                    "height": (int(y2) - int(y1)) / height},
+                    "left": left,
+                    "top": top,
+                    "width": crop_width,
+                    "height": crop_height},
                 "tag_name": "hintalappu",
                 # "probability":np.exp(-D[0][0])
                 "probability": 0.99
             })
             continue
-        img_pil = Image.fromarray(cropped)
-        img_tensor=transform(img_pil).unsqueeze(0)
-
-        with torch.no_grad():
-            embedding = emb_resnetModel(img_tensor)  # esim. nn.Sequential(...)
-            embedding = embedding.view(embedding.size(0), -1).cpu().numpy()  # shape: (1, 2048)
-            #embedding=embedding.view(1, -1).cpu().numpy()
-            klassifikaatio_aika = time.time()
-            faiss.normalize_L2(embedding)
-            D, I = index.search(embedding, k=5)
-        aika_mallinnukseen+=time.time()-klassifikaatio_aika
-        top_labels = [label_list[i] for i in I[0]]
-
-        #predicted = Counter(top_labels).most_common(1)[0][0]
-
-        predicted=top_labels[0]
-        if cls!=1:
-            tag_name=class_names[predicted]
-
-        else:
-            tag_name="hintalappu"
-        if tag_name in nimet:
-            EAN = nimet[tag_name][1]
-            tag_name=nimet[tag_name][0]
-
-        else:
-            EAN=None
-        if D[0][0]>0.3 and cls!=1:
-            predictions.append({
-                "bounding_box": {
-                    "left": int(x1) / width,
-                    "top": int(y1) / height,
-                    "width": (int(x2) - int(x1)) / width,
-                    "height": (int(y2) - int(y1)) / height},
-                "tag_name": "[Auto-Generated] Other Products",
-                "EAN":None,
-                #"probability": np.exp(-D[0][0])
-                "probability": np.exp(-D[0][0]*1.666)
-                #"probability": float(D[0][0])
-            })
-            continue
-        if int(y1)<ylin_tunnistus and cls!=1:
-            #ei huomioida hintalappuja koska ne on tuotteiden alla
-            ylin_tunnistus=int(y1)
-        predictions.append({
-            "bounding_box":{
-        "left": int(x1)/width,
-        "top": int(y1)/height,
-        "width":(int(x2) - int(x1))/width,
-        "height": (int(y2) - int(y1))/height},
-        "tag_name": tag_name,
-        "EAN":EAN,
-        #"probability":np.exp(-D[0][0])
-        "probability": np.exp(-D[0][0]*1.666)
-        #"probability": float(D[0][0])
-        })
 
 
         #plt.imshow(cropped)
@@ -246,11 +302,16 @@ def full_model_tester_resnet(image_data,YOLOmodel,emb_resnetModel,index,label_li
         prediction["bounding_box"]["top"]*=skaalauskerroin
         prediction["bounding_box"]["height"]*=skaalauskerroin
         if prediction["bounding_box"]["top"]<0:
-            print("HUUHUU")
+
             poistettavat.append(prediction)
+        #elif prediction["bounding_box"]["top"]+prediction["bounding_box"]["height"]>
     #for i in poistettavat:
     #    for j in predictions:
     #        if i==j:
+    new_result = [x for x in predictions if x not in poistettavat]
+    print(alin_tunnistus,ylin_tunnistus)
+    #print(predictions)
+    #print(1/0)
 
 
-    return predictions,alin_tunnistus,ylin_tunnistus
+    return new_result,alin_tunnistus,ylin_tunnistus

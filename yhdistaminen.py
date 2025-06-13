@@ -8,6 +8,7 @@ import json
 from scipy import sparse
 import cv2
 # Oletetaan kuvan koko
+"""
 img_height = 4080
 img_width = 3060
 with open("tiedosto.json", "r", encoding="utf-8") as f:
@@ -15,7 +16,8 @@ with open("tiedosto.json", "r", encoding="utf-8") as f:
 # Tunnistusdata (esimerkkinä; käytä omaasi tähän)
 detections = data[0]  # <- korvaa omalla datalistallasi
 # Selvitä ainutlaatuiset tag_namet
-def create_tensor(detections):
+"""
+def create_tensor(detections,img_height, img_width):
     tag_names = list({item["tag_name"] for item in detections})
 
     # Luo tag_name → kerrosindeksi -sanakirja
@@ -29,6 +31,7 @@ def create_tensor(detections):
         y = np.arange(0, h)[:, np.newaxis]
         x = np.arange(0, w)[np.newaxis, :]
         cy, cx = center
+        #print(cx,cy,sigma)
         gauss = np.exp(-((x - cx)**2 + (y - cy)**2) / (2 * sigma**2))
         return gauss
     # Täytetään tensor
@@ -37,6 +40,13 @@ def create_tensor(detections):
         bbox = item["bounding_box"]
 
         # Laske bounding boxin keskipiste pikseliarvoina
+        if bbox["left"]<0:
+            print(item)
+            print(1/0)
+        if bbox["width"]<0:
+            print(1/0)
+        if img_width<0:
+            print(1/0)
         cx = int((bbox["left"] + bbox["width"] / 2) * img_width)
         cy = int((bbox["top"] + bbox["height"] / 2) * img_height)
 
@@ -48,7 +58,7 @@ def create_tensor(detections):
         gauss = gaussian_2d((img_height, img_width), (cy, cx), sigma)
 
         # Maksimiarvo normalisoidaan esim. 100:aan
-        gauss *= 1 / gauss.max()
+        gauss /= gauss.max()
 
         # Summaa kerrokseen (jos päällekkäisyyksiä)
         tensor[layer] += gauss
@@ -196,12 +206,15 @@ def crop_images(original_images):
         # plt.show()
 
 
-
+"""
 images=[]
 img = Image.open(f"img_0.jpeg")
 img = np.array(img)
 images.append(img)
-
+img_height = 4080
+img_width = 3060
+with open("tiedosto.json", "r", encoding="utf-8") as f:
+    data = json.load(f)
 for i in range(len(data) - 1):
     img = Image.open(f"img_{i+1}.jpeg")
     img = np.array(img)
@@ -209,8 +222,8 @@ for i in range(len(data) - 1):
     data1 = data[i]
     data2 = data[i + 1]
 
-    tensor1, tags1 = create_tensor(data1)
-    tensor2, tags2 = create_tensor(data2)
+    tensor1, tags1 = create_tensor(data1,img_height,img_width)
+    tensor2, tags2 = create_tensor(data2,img_height,img_width)
 
     indeksi = find_best_shift(tensor1, tags1, tensor2, tags2)
     # print(indeksi)
@@ -248,4 +261,4 @@ kokokuva=cv2.hconcat([img1,img2[:, indeksi:]])
 
 plt.imshow(kokokuva)
 plt.show()
-
+"""

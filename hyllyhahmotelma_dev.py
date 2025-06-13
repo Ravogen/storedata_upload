@@ -983,6 +983,10 @@ def hyllyhahmotelma_ilmanhyllyja(tuotteet, hintalaput, hintalaput_hyllyissa, hyl
             tuotteet[tuotteet_keys[i]]["tuotekerrokset"] = 1
             tuotteet[tuotteet_keys[i]]["EAN"]=None
         else:
+            if tuotteet[tuotteet_keys[i]]["ka_korkeus"]==0:
+                tuotteet[tuotteet_keys[i]]["ka_korkeus"]=1
+            if tuotteet[tuotteet_keys[i]]["ka_leveys"]==0:
+                tuotteet[tuotteet_keys[i]]["ka_leveys"]=1
             tuotteet[tuotteet_keys[i]]["tuotekerrokset"] = round(
                 tuotteet[tuotteet_keys[i]]["height"] / tuotteet[tuotteet_keys[i]]["ka_korkeus"])
             tuotteet[tuotteet_keys[i]]["kpl_raw"] = tuotteet[tuotteet_keys[i]]["kpl"]
