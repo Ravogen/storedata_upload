@@ -100,7 +100,7 @@ def get_image(IMAGE_KEYs,panoramaside):
                     height, width = image.shape[:2]
 
 
-                    crop_start = int(0.15 * width)
+                    crop_start = int(0.0 * width)
 
                     cropped_image = image[:, crop_start:]
 

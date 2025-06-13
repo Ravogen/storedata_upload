@@ -13,6 +13,7 @@ from torchvision import datasets, transforms
 import faiss
 from collections import Counter
 import pickle
+import json
 
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -107,7 +108,8 @@ def full_model_tester_resnet(image_data,YOLOmodel,emb_resnetModel,index,label_li
                              std=[0.229, 0.224, 0.225])
     ])
 
-
+    with open("nimi.json", "r", encoding="utf-8") as f:
+        nimet = json.load(f)
 
 
     #test_path = './tmp/traintestset_2105'
@@ -140,7 +142,8 @@ def full_model_tester_resnet(image_data,YOLOmodel,emb_resnetModel,index,label_li
 
     aika_mallinnukseen=0
     boxes=delete_stacked_boxes(boxes)
-
+    ylin_tunnistus=10000
+    alin_tunnistus=0
     predictions=[]
     for box in boxes:
         x1, y1, x2, y2, conf, cls = box.tolist()
@@ -148,11 +151,16 @@ def full_model_tester_resnet(image_data,YOLOmodel,emb_resnetModel,index,label_li
 
         w, h = x2 - x1, y2 - y1
         cropped = image_np[int(y1):int(y2), int(x1):int(x2)]
-        if conf<0.1:
+        if conf<0.15:
 
             continue
+
+
+        if int(y1)+int(y2) - int(y1)>alin_tunnistus:
+            alin_tunnistus=int(y1)+int(y2) - int(y1)
+
         if cls==1:
-            print("hintalappu",conf)
+
             predictions.append({
                 "bounding_box": {
                     "left": int(x1) / width,
@@ -182,10 +190,15 @@ def full_model_tester_resnet(image_data,YOLOmodel,emb_resnetModel,index,label_li
         predicted=top_labels[0]
         if cls!=1:
             tag_name=class_names[predicted]
+
         else:
             tag_name="hintalappu"
+        if tag_name in nimet:
+            EAN = nimet[tag_name][1]
+            tag_name=nimet[tag_name][0]
 
-
+        else:
+            EAN=None
         if D[0][0]>0.3 and cls!=1:
             predictions.append({
                 "bounding_box": {
@@ -194,12 +207,15 @@ def full_model_tester_resnet(image_data,YOLOmodel,emb_resnetModel,index,label_li
                     "width": (int(x2) - int(x1)) / width,
                     "height": (int(y2) - int(y1)) / height},
                 "tag_name": "[Auto-Generated] Other Products",
+                "EAN":None,
                 #"probability": np.exp(-D[0][0])
                 "probability": np.exp(-D[0][0]*1.666)
                 #"probability": float(D[0][0])
             })
             continue
-
+        if int(y1)<ylin_tunnistus and cls!=1:
+            #ei huomioida hintalappuja koska ne on tuotteiden alla
+            ylin_tunnistus=int(y1)
         predictions.append({
             "bounding_box":{
         "left": int(x1)/width,
@@ -207,6 +223,7 @@ def full_model_tester_resnet(image_data,YOLOmodel,emb_resnetModel,index,label_li
         "width":(int(x2) - int(x1))/width,
         "height": (int(y2) - int(y1))/height},
         "tag_name": tag_name,
+        "EAN":EAN,
         #"probability":np.exp(-D[0][0])
         "probability": np.exp(-D[0][0]*1.666)
         #"probability": float(D[0][0])
@@ -220,5 +237,20 @@ def full_model_tester_resnet(image_data,YOLOmodel,emb_resnetModel,index,label_li
     if len(boxes)!=0:
         print("AIKA KLASSIFIKAATIOLLE", aika_mallinnukseen)
         print("KA", aika_mallinnukseen / len(boxes))
+    kuvan_uusi_korkeus=alin_tunnistus-ylin_tunnistus
+    poistettavat=[]
 
-    return predictions
+    skaalauskerroin=height/kuvan_uusi_korkeus
+    for prediction in predictions:
+        prediction["bounding_box"]["top"] -= ylin_tunnistus/height
+        prediction["bounding_box"]["top"]*=skaalauskerroin
+        prediction["bounding_box"]["height"]*=skaalauskerroin
+        if prediction["bounding_box"]["top"]<0:
+            print("HUUHUU")
+            poistettavat.append(prediction)
+    #for i in poistettavat:
+    #    for j in predictions:
+    #        if i==j:
+
+
+    return predictions,alin_tunnistus,ylin_tunnistus

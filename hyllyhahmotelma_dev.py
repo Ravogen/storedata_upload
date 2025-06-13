@@ -289,6 +289,8 @@ def hyllyhahmotelma_ilmanhyllyja(tuotteet, hintalaput, hintalaput_hyllyissa, hyl
         if key in jo_kasitellyt:
             continue
         tuote = tuotteet[key]
+        if "Auto" in key:
+            continue
         if tuote["top"] + tuote["height"] > ylim:
             ylim = tuote["top"] + tuote["height"]
         if tuote["left"] + tuote["width"] > xlim:
@@ -302,6 +304,7 @@ def hyllyhahmotelma_ilmanhyllyja(tuotteet, hintalaput, hintalaput_hyllyissa, hyl
             lahin_tuote = ""
             lahin_tuotenimi = ""
             for key2 in keys:
+
                 if key2 in jo_kasitellyt:
                     continue
                 muu_tuote = tuotteet[key2]
@@ -364,7 +367,7 @@ def hyllyhahmotelma_ilmanhyllyja(tuotteet, hintalaput, hintalaput_hyllyissa, hyl
                 if total_prob > max_prob:
                     max_prob = total_prob
                 tuotteet[key] = {'top': top, 'height': height, 'left': left, 'width': width, "prob": total_prob,
-                                 "kpl": kpl}
+                                 "kpl": kpl,"EAN":tuote["EAN"]}
                 tuote = tuotteet[key]
 
                 x_1 = tuote["left"] + tuote["width"]
@@ -388,6 +391,8 @@ def hyllyhahmotelma_ilmanhyllyja(tuotteet, hintalaput, hintalaput_hyllyissa, hyl
         if key in jo_kasitellyt:
             continue
         tuote = tuotteet[key]
+        if "Auto" in tuote:
+            continue
         tuote_left = tuote["left"]
         tuote_width = tuote["width"]
         tuote_top = tuote["top"]
@@ -976,6 +981,7 @@ def hyllyhahmotelma_ilmanhyllyja(tuotteet, hintalaput, hintalaput_hyllyissa, hyl
             tuotteet[tuotteet_keys[i]]["prob"] = 0
             tuotteet[tuotteet_keys[i]]["koko_hyllyn_ka_leveys"] = round(koko_hyllyn_ka_leveys)
             tuotteet[tuotteet_keys[i]]["tuotekerrokset"] = 1
+            tuotteet[tuotteet_keys[i]]["EAN"]=None
         else:
             tuotteet[tuotteet_keys[i]]["tuotekerrokset"] = round(
                 tuotteet[tuotteet_keys[i]]["height"] / tuotteet[tuotteet_keys[i]]["ka_korkeus"])
@@ -1028,12 +1034,15 @@ def hyllyhahmotelma_ilmanhyllyja(tuotteet, hintalaput, hintalaput_hyllyissa, hyl
     to_delete = []
     for hylly in tuotteet_hyllyissa.keys():
         for tuote1 in tuotteet_hyllyissa[hylly]:
+            if "EAN" not in tuote1:
+                print(tuote1)
+                print(1/0)
             for tuote2 in tuotteet_hyllyissa[hylly]:
                 if tuote1 == tuote2:
                     continue
                 if tuote2 in to_delete or tuote1 in to_delete:
                     continue
-                if "auto" in tuote1["tuotenimi"]:
+                if "auto" in tuote1["tuotenimi"] or "Auto" in tuote1["tuotenimi"]:
                     continue
                 if tuote1["tuotenimi"].split(" ")[0] == tuote2["tuotenimi"].split(" ")[0]:
                     tuote1_top = tuote1["top"]
@@ -1083,7 +1092,7 @@ def hyllyhahmotelma_ilmanhyllyja(tuotteet, hintalaput, hintalaput_hyllyissa, hyl
     for hylly in tuotteet_hyllyissa.keys():
         original_list = tuotteet_hyllyissa[hylly].copy()
         for tuote in original_list:
-            if tuote["tuotenimi"] in to_delete or "Auto" in tuote["tuotenimi"]:
+            if tuote["tuotenimi"] in to_delete:# or "Auto" in tuote["tuotenimi"]:
                 #print("POISTETAAN HH_DEV", tuote["tuotenimi"])
                 tuotteet_hyllyissa[hylly].remove(tuote)
                 # del tuote

@@ -105,7 +105,8 @@ def tuotteiden_sijainnit_dev(result_list: list, images: list,  iteration20=False
 
         box_json = {}
 
-
+        ylin_tuote=10000
+        alin_tuote=0
         hintalaput_for_transformation = {}
         alin_tuote_top = 0
 
@@ -159,74 +160,79 @@ def tuotteiden_sijainnit_dev(result_list: list, images: list,  iteration20=False
             TÄSSÄ LOOPISSA KÄSITELLÄÄN TUOTTEET. JOS HALUTAAN TRANSORMOIDA, KOORDINAATIT VÄÄNNETÄÄN.
 
             """
+            if prediction["tag_name"] == "hintalappu":
+                continue
             if not isinstance(prediction, dict):
                 prediction = prediction_to_dict(prediction)
             count += 1
-            if prediction["probability"] <= 0.1 and prediction["tag_name"] == "hintalappu":
-                continue
+            #if prediction["probability"] <= 0.1 and prediction["tag_name"] == "hintalappu":
+            #    continue
             # if prediction.probability >= 0.50 or prediction.tag_name == "hintalappu":
 
-            if prediction["probability"] < 0.3 and prediction[
-                "tag_name"] != '[Auto-Generated] Other Products':
-                prediction["tag_name"] = '[Auto-Generated] Other Products'
-                prediction["probability"] = prediction["probability"]
+            #if prediction["probability"] < 0.5 and prediction["tag_name"] != '[Auto-Generated] Other Products':
+            #    prediction["tag_name"] = '[Auto-Generated] Other Products'
+            #    prediction["probability"] = prediction["probability"]
 
-            if prediction["probability"] >= 0.5 or prediction[
-                "tag_name"] == "hintalappu":
-                left_original = round(prediction["bounding_box"]["left"] * image.shape[1])
-                top = round(prediction["bounding_box"]["top"] * image.shape[0])
-                width = round(prediction["bounding_box"]["width"] * image.shape[1])
-                height = round(prediction["bounding_box"]["height"] * image.shape[0])
-                if transform:
-                    oikea_ylakulma = np.array([[left_original + width, top]], dtype=np.float32)
-                    oikea_ylakulma = np.array([oikea_ylakulma], dtype=np.float32)
+            #if prediction["probability"] >= 0.5 or prediction["tag_name"] == "hintalappu":
+            left_original = round(prediction["bounding_box"]["left"] * image.shape[1])
+            top = round(prediction["bounding_box"]["top"] * image.shape[0])
+            width = round(prediction["bounding_box"]["width"] * image.shape[1])
+            height = round(prediction["bounding_box"]["height"] * image.shape[0])
+            if transform:
+                oikea_ylakulma = np.array([[left_original + width, top]], dtype=np.float32)
+                oikea_ylakulma = np.array([oikea_ylakulma], dtype=np.float32)
 
-                    oikea_alakulma = np.array([[left_original + width, top + height]], dtype=np.float32)
-                    oikea_alakulma = np.array([oikea_alakulma], dtype=np.float32)
+                oikea_alakulma = np.array([[left_original + width, top + height]], dtype=np.float32)
+                oikea_alakulma = np.array([oikea_alakulma], dtype=np.float32)
 
-                    vasen_ylakulma = np.array([[left_original, top]], dtype=np.float32)
-                    vasen_ylakulma = np.array([vasen_ylakulma], dtype=np.float32)
+                vasen_ylakulma = np.array([[left_original, top]], dtype=np.float32)
+                vasen_ylakulma = np.array([vasen_ylakulma], dtype=np.float32)
 
-                    vasen_alakulma = np.array([[left_original, top + height]], dtype=np.float32)
-                    vasen_alakulma = np.array([vasen_alakulma], dtype=np.float32)
+                vasen_alakulma = np.array([[left_original, top + height]], dtype=np.float32)
+                vasen_alakulma = np.array([vasen_alakulma], dtype=np.float32)
 
-                    oikea_ylakulma_transformed = cv2.perspectiveTransform(oikea_ylakulma, matrix)
-                    oikea_alakulma_transformed = cv2.perspectiveTransform(oikea_alakulma, matrix)
-                    vasen_ylakulma_transformed = cv2.perspectiveTransform(vasen_ylakulma, matrix)
-                    vasen_alakulma_transformed = cv2.perspectiveTransform(vasen_alakulma, matrix)
+                oikea_ylakulma_transformed = cv2.perspectiveTransform(oikea_ylakulma, matrix)
+                oikea_alakulma_transformed = cv2.perspectiveTransform(oikea_alakulma, matrix)
+                vasen_ylakulma_transformed = cv2.perspectiveTransform(vasen_ylakulma, matrix)
+                vasen_alakulma_transformed = cv2.perspectiveTransform(vasen_alakulma, matrix)
 
-                    left_original = int(vasen_alakulma_transformed[0][0][0])
-                    top = int(oikea_ylakulma_transformed[0][0][1])
-                    height = int(oikea_alakulma_transformed[0][0][1] - oikea_ylakulma_transformed[0][0][1])
-                    width = int(oikea_ylakulma_transformed[0][0][0] - vasen_ylakulma_transformed[0][0][0])
+                left_original = int(vasen_alakulma_transformed[0][0][0])
+                top = int(oikea_ylakulma_transformed[0][0][1])
+                height = int(oikea_alakulma_transformed[0][0][1] - oikea_ylakulma_transformed[0][0][1])
+                width = int(oikea_ylakulma_transformed[0][0][0] - vasen_ylakulma_transformed[0][0][0])
 
-                if prediction["tag_name"] == '[Auto-Generated] Other Products':
-                    prediction["tag_name"] = "Auto" + str(count)
+            if prediction["tag_name"] == '[Auto-Generated] Other Products':
+                prediction["tag_name"] = "Auto " + str(count)
 
-                # ei haluta väärinpäin olveia tölkkejä
-                if prediction["tag_name"] == "tolkin_katto":
-                    continue
-                left = left_original + loppu
-                if prediction["tag_name"] == "hintalappu":
-                    # KÄSITELLLÄÄN MYÖHEMMIN
-                    # hintalaput["hintalappu " + str(count)] = {"top": top,
-                    #                                          "height": height,
-                    #                                          "left": left,
-                    #                                          "width": width,
-                    #                                          "prob": prediction.probability}
+            # ei haluta väärinpäin olveia tölkkejä
+            if prediction["tag_name"] == "tolkin_katto":
+                continue
+            left = left_original + loppu
+            if prediction["tag_name"] == "hintalappu":
+                # KÄSITELLLÄÄN MYÖHEMMIN
+                # hintalaput["hintalappu " + str(count)] = {"top": top,
+                #                                          "height": height,
+                #                                          "left": left,
+                #                                          "width": width,
+                #                                          "prob": prediction.probability}
 
-                    continue
-                if top > alin_tuote_top:
-                    alin_tuote_top = top
-                if prediction["tag_name"] == "welldone_385g_condensed_milk_musta":
-                    prediction["tag_name"] = "welldone_385g_condensed_milk_sininen"
-                # print(prediction.tag_name,prediction.probability)
-                tuotteet_hyllyissa[prediction["tag_name"] + " " + str(count)] = {"top": top,
-                                                                                 "height": height,
-                                                                                 "left": left,
-                                                                                 "width": width,
-                                                                                 "prob": float(
-                                                                                     prediction["probability"])}
+                continue
+            if top > alin_tuote_top:
+                alin_tuote_top = top
+            if prediction["tag_name"] == "welldone_385g_condensed_milk_musta":
+                prediction["tag_name"] = "welldone_385g_condensed_milk_sininen"
+            # print(prediction.tag_name,prediction.probability)
+            tuotteet_hyllyissa[prediction["tag_name"] + " " + str(count)] = {"top": top,
+                                                                             "height": height,
+                                                                             "left": left,
+                                                                             "width": width,
+                                                                             "EAN":prediction["EAN"],
+                                                                             "prob": float(
+                                                                                 prediction["probability"])}
+            if top+height>alin_tuote:
+                alin_tuote=top+height
+            if top<ylin_tuote:
+                ylin_tuote=top
 
         for lappu in original_valid_hintalaput.keys():
             """
@@ -267,6 +273,8 @@ def tuotteiden_sijainnit_dev(result_list: list, images: list,  iteration20=False
                                  "width": width,
                                  "prob": float(hintalappu["prob"])}
 
+
+
         loppu += width_pala
     # TODO Heikki tähän väliin
     # panoramakuva=cv2.hconcat(images)
@@ -300,6 +308,7 @@ def tuotteiden_sijainnit_dev(result_list: list, images: list,  iteration20=False
         else:
             kmeans_init = kmeans_init_HINTALAPPU
 
+
             # print(kmeans_init)
             if alin_tuote_top > kmeans_init[-1][1]:
                 print("LISÄTÄÄN HYLLY MANUAALISESTI")
@@ -327,7 +336,12 @@ def tuotteiden_sijainnit_dev(result_list: list, images: list,  iteration20=False
 
     print("HYLLYJEN MÄÄRÄ", hyllyjen_maara)
     print("TUOTTEITA", len(list(tuotteet_hyllyissa.keys())))
-    print(hintalaput_clean)
+    #check=input(f"HYLLYJA {hyllyjen_maara}. korjaa?")
+    #try:
+    #    hyllyjen_maara=int(check)
+    #    kmeans_init="k-means++"
+    #except:
+    #    pass
     if iteration20:
         hyllyn_sisalto, tuotteet_hyllyissa = hh_dev.hyllyhahmotelma_ilmanhyllyja(tuotteet_hyllyissa, hintalaput_clean,
                                                                                  hintalaput_hyllyissa,
@@ -354,7 +368,7 @@ def tuotteiden_sijainnit_dev(result_list: list, images: list,  iteration20=False
     hyllyn_sisalto = yhdista_vierekkaiset_samat_tuotteet(hyllyn_sisalto)
     hyllyn_sisalto = overlap_filter(hyllyn_sisalto)
     if plot:
-        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'orange', 'purple', 'brown']
+        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'orange', 'purple', 'brown',"black","white"]
         for hylly in hyllyn_sisalto.keys():
             print("hyllyssä", hylly, "tuotteita", len(hyllyn_sisalto[hylly]))
             for value in hyllyn_sisalto[hylly]:
@@ -841,7 +855,8 @@ def overlap_filter(hyllyn_sisalto):
 
             tuotenimi = tuote["tuotenimi"].split(" ")[0]
             tuote_lkm = tuote["kpl"]
-
+            if "Auto" in tuotenimi:
+                continue
             for j in range(i + 1, len(hyllyn_sisalto[hylly])):
                 muutuote = hyllyn_sisalto[hylly][j]
                 muutuotenimi = muutuote["tuotenimi"].split(" ")[0]
@@ -890,7 +905,8 @@ def yhdista_vierekkaiset_samat_tuotteet(hyllynsialto):
             if i + 1 >= len(hyllyntuotteet):
                 continue
             add_i = 0
-
+            if "Auto" in hyllyntuotteet[i]["tuotenimi"].split(" ")[0]:
+                continue
             while i + add_i + 1 < len(hyllyntuotteet) and hyllyntuotteet[i]["tuotenimi"].split(" ")[0] == \
                     hyllyntuotteet[i + add_i + 1]["tuotenimi"].split(" ")[0]:
                 print("RUNDI MENOSSA", hyllyntuotteet[i]["tuotenimi"])
